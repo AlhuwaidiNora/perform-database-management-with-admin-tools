@@ -1,0 +1,142 @@
+import mysql.connector
+from mysql.connector import errorcode
+import os
+
+# Database credentials
+HOST = "localhost"
+USER = "root"
+PASSWORD = "root"
+DATABASE = "example_db"
+USER_NAME = "example_user"
+USER_PASSWORD = "password"
+BACKUP_FILE = "backup.sql"
+
+def create_connection():
+    try:
+        connection = mysql.connector.connect(
+            host=HOST,
+            user=USER,
+            passwd=PASSWORD
+        )
+        print("Connection to MySQL server established.")
+        return connection
+    except mysql.connector.Error as err:
+        print(f"Error: {err}")
+        return None
+
+def create_database(connection):
+    cursor = connection.cursor()
+    try:
+        cursor.execute(f"CREATE DATABASE {DATABASE}")
+        print(f"Database '{DATABASE}' created.")
+    except mysql.connector.Error as err:
+        print(f"Failed to create database: {err}")
+    finally:
+        cursor.close()
+
+def create_user(connection):
+    cursor = connection.cursor()
+    try:
+        cursor.execute(f"CREATE USER '{USER_NAME}'@'%' IDENTIFIED BY '{USER_PASSWORD}'")
+        cursor.execute(f"GRANT ALL PRIVILEGES ON {DATABASE}.* TO '{USER_NAME}'@'%'")
+        cursor.execute("FLUSH PRIVILEGES")
+        print(f"User '{USER_NAME}' created with privileges on database '{DATABASE}'.")
+    except mysql.connector.Error as err:
+        print(f"Failed to create user: {err}")
+    finally:
+        cursor.close()
+
+def create_table(connection):
+    cursor = connection.cursor()
+    try:
+        cursor.execute(f"USE {DATABASE}")
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS users (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                name VARCHAR(255) NOT NULL,
+                email VARCHAR(255) UNIQUE NOT NULL
+            )
+        """)
+        print("Table 'users' created.")
+    except mysql.connector.Error as err:
+        print(f"Failed to create table: {err}")
+    finally:
+        cursor.close()
+
+def insert_data(connection):
+    cursor = connection.cursor()
+    try:
+        cursor.execute(f"USE {DATABASE}")
+        cursor.execute("INSERT INTO users (name, email) VALUES ('John Doe', 'john@example.com')")
+        cursor.execute("INSERT INTO users (name, email) VALUES ('Jane Doe', 'jane@example.com')")
+        connection.commit()
+        print("Data inserted into 'users' table.")
+    except mysql.connector.Error as err:
+        print(f"Failed to insert data: {err}")
+        connection.rollback()
+    finally:
+        cursor.close()
+
+def retrieve_data(connection):
+    cursor = connection.cursor()
+    try:
+        cursor.execute(f"USE {DATABASE}")
+        cursor.execute("SELECT * FROM users")
+        rows = cursor.fetchall()
+        for row in rows:
+            print(row)
+    except mysql.connector.Error as err:
+        print(f"Failed to retrieve data: {err}")
+    finally:
+        cursor.close()
+
+def update_data(connection):
+    cursor = connection.cursor()
+    try:
+        cursor.execute(f"USE {DATABASE}")
+        cursor.execute("UPDATE users SET name = 'Jane Smith' WHERE email = 'jane@example.com'")
+        connection.commit()
+        print("Data updated in 'users' table.")
+    except mysql.connector.Error as err:
+        print(f"Failed to update data: {err}")
+        connection.rollback()
+    finally:
+        cursor.close()
+
+def delete_data(connection):
+    cursor = connection.cursor()
+    try:
+        cursor.execute(f"USE {DATABASE}")
+        cursor.execute("DELETE FROM users WHERE email = 'john@example.com'")
+        connection.commit()
+        print("Data deleted from 'users' table.")
+    except mysql.connector.Error as err:
+        print(f"Failed to delete data: {err}")
+        connection.rollback()
+    finally:
+        cursor.close()
+
+def backup_database():
+    os.system(f"docker exec mysql-container mysqldump -u {USER} -p{PASSWORD} {DATABASE} > {BACKUP_FILE}")
+    print(f"Database '{DATABASE}' backed up to '{BACKUP_FILE}'.")
+
+def restore_database():
+    os.system(f"docker exec -i mysql-container mysql -u {USER} -p{PASSWORD} {DATABASE} < {BACKUP_FILE}")
+    print(f"Database '{DATABASE}' restored from '{BACKUP_FILE}'.")
+
+def main():
+    connection = create_connection()
+    if connection:
+        create_database(connection)
+        create_user(connection)
+        create_table(connection)
+        insert_data(connection)
+        retrieve_data(connection)
+        update_data(connection)
+        delete_data(connection)
+        backup_database()
+        restore_database()
+        connection.close()
+
+if __name__ == "__main__":
+    main()
